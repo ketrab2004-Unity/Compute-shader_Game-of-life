@@ -1,0 +1,70 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel PrepareOut
+#pragma kernel GameOfLife
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Out;
+sampler2D From;
+
+float2 rtSize;
+
+[numthreads(8,8,1)]
+void PrepareOut (uint3 id : SV_DispatchThreadID)
+{
+    float4 pos = float4(id.x / rtSize.x,id.y / rtSize.y, 0,0);
+
+    float4 current = tex2Dlod(From, pos);
+
+    float lum = (0.299f * current.x + 0.587f * current.y + 0.114 * current.z) * -(current.w -1);
+    //lum = floor(lum + .5f);
+
+    Out[id.xy] = float4(lum, lum, lum, 0);
+}
+
+[numthreads(8,8,1)]
+void GameOfLife (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    float4 pos = float4(id.x / rtSize.x,id.y / rtSize.y, 0,0);
+    float2 pixelSize = 1 / rtSize;
+
+    float current = tex2Dlod(From, pos).x;
+    
+    float neighbours = 0;
+
+    // X+1
+    neighbours += tex2Dlod(From, pos + float4(pixelSize.x,0,0,0)).x;
+    neighbours += tex2Dlod(From, pos + float4(pixelSize.x,pixelSize.y,0,0)).x;
+    neighbours += tex2Dlod(From, pos + float4(pixelSize.x,-pixelSize.y,0,0)).x;
+
+    // X
+    neighbours += tex2Dlod(From, pos + float4(0,pixelSize.y,0,0)).x;
+    neighbours += tex2Dlod(From, pos + float4(0,-pixelSize.y,0,0)).x;
+    
+    // X-1
+    neighbours += tex2Dlod(From, pos + float4(-pixelSize.x,0,0,0)).x;
+    neighbours += tex2Dlod(From, pos + float4(-pixelSize.x,pixelSize.y,0,0)).x;
+    neighbours += tex2Dlod(From, pos + float4(-pixelSize.x,-pixelSize.y,0,0)).x;
+
+    float result;
+    switch (floor(neighbours+.5f))
+    {
+        case 2: //2 neighbours so keeps living, only if alive
+            result = 1 * current;
+            break;
+
+        case 3: //3 neighbours so keeps living, also if dead
+            result = 1;
+            break;
+
+        //less than 2 neighbours
+        //more than 3 neighbours
+        default:
+            result = 0;
+            break;
+    }
+    
+    Out[id.xy] = float4(result, result, result,0);
+    //Out[id.xy] = tex2Dlod(From, pos + float4(pixelSize.x,0,0,0));
+}
